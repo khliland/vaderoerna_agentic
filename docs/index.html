@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive PCA Visualizer</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 30px;
+            align-items: center;
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .control-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input[type="file"],
+        select {
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            background: white;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        input[type="file"]:hover,
+        select:hover {
+            border-color: #999;
+        }
+
+        select {
+            min-width: 120px;
+        }
+
+        .status {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px 15px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .status.idle {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border: 1px solid #4caf50;
+        }
+
+        .status.processing {
+            background: #fff3e0;
+            color: #e65100;
+            border: 1px solid #ff9800;
+        }
+
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+            border: 1px solid #f44336;
+        }
+
+        .plots-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 20px;
+            width: 100%;
+        }
+
+        .plot-section {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+            min-width: 0;
+        }
+
+        .plot-section h2 {
+            font-size: 16px;
+            color: #333;
+            font-weight: 600;
+            border-bottom: 2px solid #2196F3;
+            padding-bottom: 8px;
+        }
+
+        .plot-container {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            width: 100%;
+            max-width: 100%;
+            height: 550px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .plot-container.loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-style: italic;
+        }
+
+        .info-text {
+            font-size: 12px;
+            color: #777;
+            padding: 5px 0;
+        }
+
+        @media (max-width: 900px) {
+            .plots-container {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .control-group {
+                width: 100%;
+            }
+
+            input[type="file"],
+            select {
+                width: 100%;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>📊 Interactive PCA Visualizer</h1>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="fileInput">Data File (CSV)</label>
+                <input type="file" id="fileInput" accept=".csv" />
+            </div>
+
+            <div class="control-group">
+                <label for="pcX">PC (X-axis)</label>
+                <select id="pcX">
+                    <option value="0">PC1</option>
+                    <option value="1">PC2</option>
+                    <option value="2">PC3</option>
+                    <option value="3">PC4</option>
+                    <option value="4">PC5</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label for="pcY">PC (Y-axis)</label>
+                <select id="pcY">
+                    <option value="1">PC2</option>
+                    <option value="0">PC1</option>
+                    <option value="2">PC3</option>
+                    <option value="3">PC4</option>
+                    <option value="4">PC5</option>
+                </select>
+            </div>
+
+            <div class="status idle">Initializing Python environment...</div>
+        </div>
+
+        <div class="plots-container">
+            <div class="plot-section">
+                <h2>Raw Data (Parallel Coordinates)</h2>
+                <p class="info-text">Features as columns, samples as lines. Click/drag to select.</p>
+                <div id="parallelPlot" class="plot-container"></div>
+            </div>
+
+            <div class="plot-section">
+                <h2>PCA Score Plot</h2>
+                <p class="info-text">Principal component scores. Change axes above.</p>
+                <div id="scorePlot" class="plot-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.0/full/pyodide.js"></script>
+    <script>
+        let pyodide = null;
+
+        const state = {
+            isDataLoaded: false,
+            selectedIndices: [],
+            pcX: 0,
+            pcY: 1,
+            numComponents: 0,
+            featureNames: []
+        };
+
+        const fileInput = document.getElementById('fileInput');
+        const pcXSelect = document.getElementById('pcX');
+        const pcYSelect = document.getElementById('pcY');
+        const statusEl = document.querySelector('.status');
+        const parallelPlotDiv = document.getElementById('parallelPlot');
+        const scorePlotDiv = document.getElementById('scorePlot');
+
+        function setStatus(message, type = 'idle') {
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+        }
+
+        async function initPython() {
+            try {
+                console.log("Loading Pyodide...");
+                pyodide = await loadPyodide();
+                console.log("Pyodide loaded successfully");
+
+                console.log("Loading dependencies...");
+                await pyodide.loadPackage(["numpy", "pandas", "scikit-learn"]);
+                console.log("Dependencies loaded successfully");
+
+                const pythonCode = `
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+import io
+
+pca_model = None
+raw_data = None
+pca_scores = None
+explained_variance = None
+
+def compute_pca(csv_content):
+    global pca_model, raw_data, pca_scores, explained_variance
+    try:
+        print("compute_pca called with CSV content length:", len(csv_content))
+        raw_data = pd.read_csv(io.StringIO(csv_content))
+        print("CSV loaded, shape:", raw_data.shape)
+        
+        numeric_data = raw_data.select_dtypes(include=[np.number])
+        print("Numeric data shape:", numeric_data.shape)
+        
+        if numeric_data.empty:
+            return {"error": "No numeric columns found"}
+        if len(numeric_data) < 2:
+            return {"error": "Need at least 2 samples"}
+        if numeric_data.shape[1] < 2:
+            return {"error": "Need at least 2 features"}
+        
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(numeric_data)
+        n_components = min(numeric_data.shape[0], numeric_data.shape[1])
+        
+        print(f"Fitting PCA with {n_components} components...")
+        pca_model = PCA(n_components=n_components)
+        pca_scores = pca_model.fit_transform(X_scaled)
+        explained_variance = pca_model.explained_variance_ratio_.tolist()
+        
+        print(f"PCA complete. Explained variance: {explained_variance[0]:.4f}")
+        
+        return {
+            "success": True,
+            "num_samples": int(len(raw_data)),
+            "num_features": int(numeric_data.shape[1]),
+            "num_components": int(n_components),
+            "explained_variance": explained_variance,
+            "feature_names": list(numeric_data.columns)
+        }
+    except Exception as e:
+        print(f"Error in compute_pca: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"error": f"Error: {str(e)}"}
+
+def get_parallel_coords_data(selected_indices):
+    if raw_data is None:
+        return {"error": "No data loaded"}
+    numeric_data = raw_data.select_dtypes(include=[np.number])
+    sel_set = set(selected_indices) if selected_indices else set()
+    colors = [1 if i in sel_set else 0 for i in range(len(numeric_data))]
+    
+    return {
+        "type": "parcoords",
+        "dimensions": [{"label": col, "values": numeric_data[col].tolist()} for col in numeric_data.columns],
+        "line": {
+            "color": colors,
+            "colorscale": [[0, "rgba(100,150,200,0.3)"], [1, "rgba(255,0,0,0.8)"]],
+            "showscale": False
+        }
+    }
+
+def get_score_plot_data(pc_x, pc_y, selected_indices):
+    if pca_scores is None:
+        return {"error": "No PCA data"}
+    if pc_x >= len(pca_scores[0]) or pc_y >= len(pca_scores[0]):
+        return {"error": "Invalid PC indices"}
+    
+    sel_set = set(selected_indices) if selected_indices else set()
+    colors = ["red" if i in sel_set else "blue" for i in range(len(pca_scores))]
+    opacities = [1.0 if i in sel_set else 0.3 for i in range(len(pca_scores))]
+    
+    return {
+        "x": pca_scores[:, pc_x].tolist(),
+        "y": pca_scores[:, pc_y].tolist(),
+        "mode": "markers",
+        "type": "scatter",
+        "marker": {"size": 8, "color": colors, "opacity": opacities},
+        "text": [f"Sample {i}" for i in range(len(pca_scores))],
+        "hoverinfo": "text+x+y"
+    }
+
+print("Python environment ready")
+`;
+
+                await pyodide.runPythonAsync(pythonCode);
+                console.log("Python environment initialized successfully");
+                setStatus('Ready to upload CSV file', 'idle');
+            } catch (error) {
+                console.error('Python initialization error:', error);
+                setStatus(`Failed to initialize Python: ${error.message}`, 'error');
+            }
+        }
+
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            setStatus('Processing file...', 'processing');
+            parallelPlotDiv.className = 'plot-container loading';
+            scorePlotDiv.className = 'plot-container loading';
+
+            try {
+                const csvContent = await file.text();
+                const resultPy = pyodide.globals.get("compute_pca")(csvContent);
+
+                // Convert PyDict to JavaScript object using Pyodide API
+                const result = {};
+                if (resultPy && typeof resultPy.keys === 'function') {
+                    // Use Pyodide .keys() and .get() API
+                    for (const key of resultPy.keys()) {
+                        const val = resultPy.get(key);
+
+                        if (key === 'explained_variance') {
+                            // Convert list to JavaScript array
+                            result[key] = [];
+                            for (let i = 0; i < val.length; i++) {
+                                result[key].push(val.get(i));
+                            }
+                        } else if (key === 'feature_names') {
+                            // Convert list to JavaScript array
+                            result[key] = [];
+                            for (let i = 0; i < val.length; i++) {
+                                result[key].push(val.get(i));
+                            }
+                        } else {
+                            // Direct values (success, num_samples, etc.)
+                            result[key] = val;
+                        }
+                    }
+                }
+
+                console.log('Converted result:', result);
+                console.log('Explained variance:', result.explained_variance);
+
+                if (result.error) {
+                    throw new Error(result.error);
+                }
+
+                if (!result.explained_variance || result.explained_variance.length === 0) {
+                    console.error('Full result object:', result);
+                    throw new Error('PCA computation failed: no variance data. Check console for details.');
+                }
+
+                state.isDataLoaded = true;
+                state.numComponents = result.num_components;
+                state.featureNames = result.feature_names;
+                state.selectedIndices = [];
+                state.pcX = 0;
+                state.pcY = 1;
+
+                updatePCSelectors();
+                renderPlots();
+
+                setStatus(
+                    `Loaded: ${result.num_samples} samples × ${result.num_features} features | Variance (PC1): ${(result.explained_variance[0] * 100).toFixed(1)}%`,
+                    'idle'
+                );
+            } catch (error) {
+                setStatus(`Error: ${error.message}`, 'error');
+                parallelPlotDiv.className = 'plot-container';
+                parallelPlotDiv.innerHTML = `<div style="padding: 20px; color: #c62828;">${error.message}</div>`;
+                scorePlotDiv.className = 'plot-container';
+                scorePlotDiv.innerHTML = `<div style="padding: 20px; color: #c62828;">${error.message}</div>`;
+                console.error('Error:', error);
+            }
+        });
+
+        function updatePCSelectors() {
+            const options = Array.from({ length: state.numComponents }, (_, i) =>
+                `<option value="${i}">PC${i + 1}</option>`
+            ).join('');
+            pcXSelect.innerHTML = options;
+            pcYSelect.innerHTML = options;
+            pcXSelect.value = '0';
+            pcYSelect.value = '1';
+        }
+
+        pcXSelect.addEventListener('change', () => {
+            const pcX = parseInt(pcXSelect.value);
+            const pcY = parseInt(pcYSelect.value);
+            if (pcX === pcY) pcYSelect.value = pcX === 0 ? '1' : '0';
+            state.pcX = parseInt(pcXSelect.value);
+            if (state.isDataLoaded) renderScorePlot();
+        });
+
+        pcYSelect.addEventListener('change', () => {
+            const pcX = parseInt(pcXSelect.value);
+            const pcY = parseInt(pcYSelect.value);
+            if (pcX === pcY) pcXSelect.value = pcY === 0 ? '1' : '0';
+            state.pcY = parseInt(pcYSelect.value);
+            if (state.isDataLoaded) renderScorePlot();
+        });
+
+        function renderPlots() {
+            renderParallelPlot();
+            renderScorePlot();
+        }
+
+        function renderParallelPlot() {
+            if (!state.isDataLoaded || !pyodide) return;
+            try {
+                const tracePy = pyodide.globals.get("get_parallel_coords_data")(state.selectedIndices);
+
+                // Convert Pyodide PyDict to JavaScript object
+                const trace = {};
+                if (tracePy && typeof tracePy.keys === 'function') {
+                    for (const key of tracePy.keys()) {
+                        const val = tracePy.get(key);
+
+                        if (key === 'dimensions') {
+                            // Convert dimensions list
+                            trace[key] = [];
+                            for (let i = 0; i < val.length; i++) {
+                                const dimPy = val.get(i);
+                                const dim = {};
+                                for (const dimKey of dimPy.keys()) {
+                                    const dimVal = dimPy.get(dimKey);
+                                    if (dimKey === 'values') {
+                                        // Convert values list
+                                        dim[dimKey] = [];
+                                        for (let j = 0; j < dimVal.length; j++) {
+                                            dim[dimKey].push(dimVal.get(j));
+                                        }
+                                    } else {
+                                        dim[dimKey] = dimVal;
+                                    }
+                                }
+                                trace[key].push(dim);
+                            }
+                        } else if (key === 'line') {
+                            // Convert line object
+                            trace[key] = {};
+                            for (const lineKey of val.keys()) {
+                                const lineVal = val.get(lineKey);
+                                if (lineKey === 'color') {
+                                    // Convert color array
+                                    trace[key][lineKey] = [];
+                                    for (let i = 0; i < lineVal.length; i++) {
+                                        trace[key][lineKey].push(lineVal.get(i));
+                                    }
+                                } else if (lineKey === 'colorscale') {
+                                    // Convert colorscale array of arrays
+                                    trace[key][lineKey] = [];
+                                    for (let i = 0; i < lineVal.length; i++) {
+                                        const pair = [];
+                                        const pairPy = lineVal.get(i);
+                                        for (let j = 0; j < pairPy.length; j++) {
+                                            pair.push(pairPy.get(j));
+                                        }
+                                        trace[key][lineKey].push(pair);
+                                    }
+                                } else {
+                                    trace[key][lineKey] = lineVal;
+                                }
+                            }
+                        } else {
+                            trace[key] = val;
+                        }
+                    }
+                }
+
+                if (!trace.type) {
+                    console.error('Invalid trace object:', trace);
+                    return;
+                }
+
+                const layout = {
+                    title: 'Raw Data - Parallel Coordinates',
+                    margin: { l: 100, r: 50, t: 50, b: 50 },
+                    height: 500,
+                    font: { size: 11 }
+                };
+                Plotly.newPlot(parallelPlotDiv, [trace], layout, { responsive: true });
+
+                if (parallelPlotDiv.removeAllListeners) {
+                    parallelPlotDiv.removeAllListeners('plotly_restyle');
+                }
+                parallelPlotDiv.on('plotly_restyle', () => {
+                    const gd = parallelPlotDiv;
+                    if (!gd.data || !gd.data[0] || !gd.data[0].dimensions) return;
+                    
+                    const dimensions = gd.data[0].dimensions;
+                    const numSamples = dimensions[0].values.length;
+                    const hasActiveFilters = dimensions.some(dim => dim.constraintrange !== undefined && dim.constraintrange !== null);
+                    
+                    if (hasActiveFilters) {
+                        const selected = [];
+                        for (let i = 0; i < numSamples; i++) {
+                            let match = true;
+                            for (const dim of dimensions) {
+                                if (dim.constraintrange !== undefined && dim.constraintrange !== null) {
+                                    const val = dim.values[i];
+                                    const range = dim.constraintrange;
+                                    let inRange = false;
+                                    if (Array.isArray(range[0])) {
+                                        inRange = range.some(r => val >= r[0] && val <= r[1]);
+                                    } else {
+                                        inRange = val >= range[0] && val <= range[1];
+                                    }
+                                    if (!inRange) {
+                                        match = false;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (match) selected.push(i);
+                        }
+                        state.selectedIndices = selected;
+                    } else {
+                        state.selectedIndices = [];
+                    }
+                    renderScorePlot();
+                });
+            } catch (error) {
+                console.error('Parallel plot error:', error);
+                parallelPlotDiv.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        function renderScorePlot() {
+            if (!state.isDataLoaded || !pyodide) return;
+            try {
+                state.pcX = parseInt(pcXSelect.value);
+                state.pcY = parseInt(pcYSelect.value);
+                const tracePy = pyodide.globals.get("get_score_plot_data")(state.pcX, state.pcY, state.selectedIndices);
+
+                // Convert Pyodide PyDict to JavaScript object
+                const trace = {};
+                if (tracePy && typeof tracePy.keys === 'function') {
+                    for (const key of tracePy.keys()) {
+                        const val = tracePy.get(key);
+
+                        if (key === 'x' || key === 'y' || key === 'color' || key === 'text') {
+                            // Convert arrays
+                            if (key === 'color') {
+                                // Color array might be strings
+                                trace[key] = [];
+                                for (let i = 0; i < val.length; i++) {
+                                    trace[key].push(val.get(i));
+                                }
+                            } else {
+                                // x, y are numeric arrays
+                                trace[key] = [];
+                                for (let i = 0; i < val.length; i++) {
+                                    trace[key].push(val.get(i));
+                                }
+                            }
+                        } else if (key === 'marker') {
+                            // Convert marker object
+                            trace[key] = {};
+                            for (const markerKey of val.keys()) {
+                                const markerVal = val.get(markerKey);
+                                if (markerKey === 'opacity') {
+                                    // opacity is an array
+                                    trace[key][markerKey] = [];
+                                    for (let i = 0; i < markerVal.length; i++) {
+                                        trace[key][markerKey].push(markerVal.get(i));
+                                    }
+                                } else {
+                                    trace[key][markerKey] = markerVal;
+                                }
+                            }
+                        } else {
+                            trace[key] = val;
+                        }
+                    }
+                }
+
+                if (!trace.type) {
+                    console.error('Invalid trace object:', trace);
+                    return;
+                }
+
+                const layout = {
+                    title: `PCA Score Plot (PC${state.pcX + 1} vs PC${state.pcY + 1})`,
+                    xaxis: { title: `PC${state.pcX + 1}` },
+                    yaxis: { title: `PC${state.pcY + 1}` },
+                    margin: { l: 70, r: 50, t: 50, b: 70 },
+                    height: 500,
+                    hovermode: 'closest',
+                    font: { size: 11 }
+                };
+                Plotly.newPlot(scorePlotDiv, [trace], layout, { responsive: true });
+
+                if (scorePlotDiv.removeAllListeners) {
+                    scorePlotDiv.removeAllListeners('plotly_selected');
+                    scorePlotDiv.removeAllListeners('plotly_deselect');
+                    scorePlotDiv.removeAllListeners('plotly_doubleclick');
+                    scorePlotDiv.removeAllListeners('plotly_click');
+                }
+
+                scorePlotDiv.on('plotly_selected', (data) => {
+                    if (data && data.points) {
+                        state.selectedIndices = data.points.map(p => p.pointNumber);
+                        renderParallelPlot();
+                    }
+                });
+                
+                const handleScoreReset = () => {
+                    state.selectedIndices = [];
+                    renderPlots();
+                };
+                
+                scorePlotDiv.on('plotly_deselect', handleScoreReset);
+                scorePlotDiv.on('plotly_doubleclick', handleScoreReset);
+                
+                scorePlotDiv.on('plotly_click', (data) => {
+                    if (data.points.length > 0) {
+                        const idx = data.points[0].pointNumber;
+                        const pos = state.selectedIndices.indexOf(idx);
+                        if (pos > -1) {
+                            state.selectedIndices.splice(pos, 1);
+                        } else {
+                            state.selectedIndices.push(idx);
+                        }
+                        renderPlots();
+                    }
+                });
+            } catch (error) {
+                console.error('Score plot error:', error);
+                scorePlotDiv.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Initialize Pyodide on page load
+        initPython();
+    </script>
+</body>
+
+</html>
